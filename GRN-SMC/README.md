@@ -10,8 +10,6 @@ The supplementary video is available at: https://youtu.be/JialCK84jfA?si=xZuN0fi
 
 📂 Project Structure
 
-GRN-SMC/
-│
 ├── Matlab_three_scenes/        # MATLAB-based simulation scenarios
 │   ├── main1_tunnel_obs.m       # Scenario 1: Predictive entrapment in a tunnel with obstacles
 │   ├── main2_free_obs.m         # Scenario 2: Predictive entrapment in an open space with obstacle free
@@ -87,3 +85,4 @@ If you use this code in your research, please cite:
   publisher={IEEE}
 
 }
+
