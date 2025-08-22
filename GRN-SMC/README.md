@@ -83,6 +83,7 @@ If you use this code in your research, please cite:
   title={Time-varying Target Predictive Entrapment Based on Gene Regulatory Network and Sliding Mode Control},
   author={Wen, Ziling and Wang, Dongliang and Wang, Zhaojun and Huang, Dawei and Yang, Binghao and Li, Wenji and Fan, Zhun and Zou, An-Min},
   journal={IEEE Internet of Things Journal},
-  year={2024},
+  year={2025},
   publisher={IEEE}
+
 }
