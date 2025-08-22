@@ -11,7 +11,9 @@ The supplementary video is available at: https://youtu.be/JialCK84jfA?si=xZuN0fi
 📂 Project Structure
 
 GRN-SMC/
+
 │
+
 ├── Matlab_three_scenes/        # MATLAB-based simulation scenarios
 
 │   ├── main1_tunnel_obs.m       # Scenario 1: Predictive entrapment in a tunnel with obstacles
@@ -27,15 +29,25 @@ GRN-SMC/
 │   └── (other utility functions for pattern generation, obstacle generation, etc.)
 
 │
+
 ├── Python_two_scenes/          # Python-based simulation scenarios
+
 │   ├── main_ori.py             # Scenario A: Baseline entrapment with static obstacles
+
 │   ├── main_cir.py             # Scenario B: Entrapment of a circular-moving (time-varying) target
+
 │   ├── hunter.txt              # Initial hunter robot positions
+
 │   ├── target.txt              # Target trajectory
+
 │   ├── obstacles.txt
+
 │   ├── animation.gif           # Simulation result animation
+
 │   ├── GRN-SMC_Dv.txt          # Output: entrapment performance metric (Dv)
+
 │   ├── GRN_SMC_time_array.txt  # Output: runtime performance per timestep
+
 │   └── UAV.png                 # UAV icon for visualization
 
 ⚙️ Requirements
@@ -94,4 +106,5 @@ If you use this code in your research, please cite:
   publisher={IEEE}
 
 }
+
 
