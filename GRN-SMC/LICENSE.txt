@@ -24,9 +24,5 @@ educational purposes only**, subject to the following conditions:
 ---
 
 📌 Citation Requirement
-If you use this code in academic research, please cite the following paper:
+If you use this code in academic research, please cite our paper.
 
-Wen, Ziling, Wang, Dongliang, Wang, Zhaojun, Huang, Dawei, Yang, Binghao,
-Li, Wenji, Fan, Zhun, and Zou, An-Min.
-"Time-varying Target Predictive Entrapment Based on Gene Regulatory Network
-and Sliding Mode Control." IEEE Internet of Things Journal, 2025.
