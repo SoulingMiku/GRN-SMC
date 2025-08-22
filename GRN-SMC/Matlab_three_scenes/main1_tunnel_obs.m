@@ -1,0 +1,1330 @@
+clear;close all;clc;
+global cell_wid;
+global distent_fish;                        
+global distent_capter;                      
+global distent_detect ;                     
+global v1 v2 v;                                  
+
+p_fish = [10,22.5,1
+    10,20.5,1];
+time_step    = 123; 
+v_p_fish1 = [];
+v_p_fish2 = []; 
+v_p = [];
+Vr_grn1 = [];
+Vr_smc = [];
+Vr_ch = [];
+% rand('seed',0);
+num_targets   = 2;  
+num_robot     = 10; 
+num_barrier   = 2;  
+
+%滑模控制器相关矩阵
+x_mat = zeros(time_step,num_robot);
+y_mat = zeros(time_step,num_robot);
+x_d_mat = zeros(time_step,num_robot);
+y_d_mat = zeros(time_step,num_robot);
+x_dd_mat = zeros(time_step,num_robot);
+y_dd_mat = zeros(time_step,num_robot);
+
+v_gp_x = zeros(time_step,num_robot);
+v_gp_y = zeros(time_step,num_robot);
+v_smc_x = zeros(time_step,num_robot);
+v_smc_y = zeros(time_step,num_robot);
+v_ch_x = zeros(time_step,num_robot);
+v_ch_y = zeros(time_step,num_robot);
+
+x_b_mat = zeros(time_step,num_robot);
+y_b_mat = zeros(time_step,num_robot);
+x_bb_mat = zeros(time_step,num_robot);
+y_bb_mat = zeros(time_step,num_robot);
+x_d_bp_mat = zeros(time_step,num_robot);
+y_d_bp_mat = zeros(time_step,num_robot);
+
+x_p_mat = zeros(time_step,num_robot);
+y_p_mat = zeros(time_step,num_robot);
+
+theta_mat = zeros(time_step, num_robot);
+theta_d_mat = zeros(time_step, num_robot);
+error = zeros(time_step,num_robot);
+rec_time = zeros(time_step,1);
+
+x_d_error = [];
+y_d_error = [];
+x_point = [];
+y_point = [];
+point_rec1 = [];
+point_rec2 = [];
+point_change = [];
+d_mat = [];
+dd_mat = [];
+ddd_mat = [];
+P_d_change = [];
+captor_change = [];
+captor_change_b = [];
+captor_change_bb = [];
+% target_point_rec = zeros(time_step, num_robot);
+dt = 0.01;
+
+
+factors=[5,1,1,1,1,1,1,   1,1,0,0,0,1,1,   0,0,1,0,1,1,1];  
+factors = reshape(factors,7,3);
+factors = factors';
+
+p_captor   = textread('point_tunnel.txt')';
+pp_captor  = textread('point_tunnel.txt')';
+ppp_captor  = textread('point_tunnel.txt')';
+% p_captor   = 0.1.*rand(num_robot,2);
+% p_captor      = 7 * rand(num_robot,3) + 6;
+% p_captor(:,2) = p_captor(:,2) + 11;
+p_captor(:,3) = 1;
+pp_captor(:,3) = 1;
+ppp_captor(:,3) = 1;
+
+cell_wid = 0.25;                            
+distent_detect = 4.5;                       
+distent_fish = 1;                           
+distent_capter = 0.5;                       
+v1 = 0;
+v2 = 0;
+
+%%  
+length = 0.5;    
+num_simulation = 0;
+
+% 
+right_wide_1 = 14; right_wide_2 = 15;
+right_long_1 = 15.5; right_long_2 = 22;
+
+% 
+left_wide_1 = 5; left_wide_2 = 6;
+left_long_1 = 15.5; left_long_2 = 22;
+
+% 
+point1 = 4*[left_wide_1,left_wide_2,left_wide_2,left_wide_1;
+    left_long_1,left_long_1,left_long_2,left_long_2;];
+barrier1 = myrectangle(point1);
+point1 = 4*[left_wide_1,left_wide_2,left_wide_2,left_wide_1;
+    left_long_1,left_long_1,left_long_2,left_long_2;]*cell_wid;
+simulation1 = [left_wide_1+length, left_wide_2-length, left_wide_2-length, left_wide_1+length, left_wide_1+length;
+    left_long_1+length, left_long_1+length, left_long_2-length, left_long_2-length, left_long_1+length];
+
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation1(2,i+1)-simulation1(2,i))/(simulation1(1,i+1)-simulation1(1,i)));
+    if ((simulation1(1,i+1)-simulation1(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation1(2,i);
+        for x = simulation1(1,i):length*cosd(simulation_theta(i)):simulation1(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation1(1,i+1)-simulation1(1,i))==0) && (simulation1(2,i+1)-simulation1(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation1(1,i);
+        for y = simulation1(2,i):length:simulation1(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation1(1,i+1)-simulation1(1,i))==0) && (simulation1(2,i+1)-simulation1(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation1(1,i);
+        for y = simulation1(2,i):-length:simulation1(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation1(2,i);
+        for x = simulation1(1,i):length*cosd(simulation_theta(i)):simulation1(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+% 
+point2 = 4*[right_wide_1,right_wide_2,right_wide_2,right_wide_1;
+    right_long_1,right_long_1,right_long_2,right_long_2;];
+barrier2 = myrectangle(point2);
+point2 = 4*[right_wide_1,right_wide_2,right_wide_2,right_wide_1;
+    right_long_1,right_long_1,right_long_2,right_long_2;]*cell_wid;
+simulation2 = [right_wide_1+length, right_wide_2-length, right_wide_2-length, right_wide_1+length, right_wide_1+length;
+    right_long_1+length, right_long_1+length, right_long_2-length, right_long_2-length, right_long_1+length];
+% num_simulation = 0;
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation2(2,i+1)-simulation2(2,i))/(simulation2(1,i+1)-simulation2(1,i)));
+    if ((simulation2(1,i+1)-simulation2(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation2(2,i);
+        for x = simulation2(1,i):length*cosd(simulation_theta(i)):simulation2(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation2(1,i+1)-simulation2(1,i))==0) && (simulation2(2,i+1)-simulation2(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation2(1,i);
+        for y = simulation2(2,i):length:simulation2(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation2(1,i+1)-simulation2(1,i))==0) && (simulation2(2,i+1)-simulation2(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation2(1,i);
+        for y = simulation2(2,i):-length:simulation2(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation2(2,i);
+        for x = simulation2(1,i):length*cosd(simulation_theta(i)):simulation2(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+%% base
+inc0_y_1     = 26;
+inc0_y_2     = 24.7;
+% 
+inc0_piont_1 = 7.5;   inc0_piont_2 = 12.5;
+inc0_piont_3 = 7.5;   inc0_piont_4 = 12.5;
+
+inc_0 = 4*[inc0_piont_1,inc0_piont_2,inc0_piont_4,inc0_piont_3;
+    inc0_y_1,inc0_y_1,inc0_y_2,inc0_y_2;];
+barrier0 = myrectangle(inc_0);
+inc_0 = 4*[inc0_piont_1,inc0_piont_2,inc0_piont_4,inc0_piont_3;
+    inc0_y_1,inc0_y_1,inc0_y_2,inc0_y_2;]*cell_wid;
+%% 
+inc_y_1     = 21;
+inc_y_2     = 19;
+% 
+inc2_piont_1 = 12.1;   inc2_piont_2 = 12.6;
+inc2_piont_3 = 13;   inc2_piont_4 = 15;
+
+% 
+inc1_piont_1 = 7.5;   inc1_piont_2 = 7.9;
+inc1_piont_3 = 5;   inc1_piont_4 = 7;
+
+% 
+
+inc_1 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier3 = myrectangle(inc_1);
+inc_1 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation6 = [inc1_piont_1+length, inc1_piont_2-length, inc1_piont_4-length, inc1_piont_3+length, inc1_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation6(2,i+1)-simulation6(2,i))/(simulation6(1,i+1)-simulation6(1,i)));
+    if ((simulation6(1,i+1)-simulation6(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation6(2,i);
+        for x = simulation6(1,i):length*cosd(simulation_theta(i)):simulation6(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation6(1,i+1)-simulation6(1,i))==0) && (simulation6(2,i+1)-simulation6(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation6(1,i);
+        for y = simulation6(2,i):length:simulation6(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation6(1,i+1)-simulation6(1,i))==0) && (simulation6(2,i+1)-simulation6(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation6(1,i);
+        for y = simulation6(2,i):-length:simulation6(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation6(2,i);
+        for x = simulation6(1,i):length*cosd(simulation_theta(i)):simulation6(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+% 
+inc_2 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier4 = myrectangle(inc_2);
+inc_2 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation7 = [inc2_piont_1+length, inc2_piont_2-length, inc2_piont_4-length, inc2_piont_3+length, inc2_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+% num_simulation = 0;
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation7(2,i+1)-simulation7(2,i))/(simulation7(1,i+1)-simulation7(1,i)));
+    if ((simulation7(1,i+1)-simulation7(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation7(2,i);
+        for x = simulation7(1,i):length*cosd(simulation_theta(i)):simulation7(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation7(1,i+1)-simulation7(1,i))==0) && (simulation7(2,i+1)-simulation7(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation7(1,i);
+        for y = simulation7(2,i):length:simulation7(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation7(1,i+1)-simulation7(1,i))==0) && (simulation7(2,i+1)-simulation7(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation7(1,i);
+        for y = simulation7(2,i):-length:simulation7(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation7(2,i);
+        for x = simulation7(1,i):length*cosd(simulation_theta(i)):simulation7(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+%% 
+inc_y_1     = 17.5;
+inc_y_2     = 15.5;
+% 
+inc2_piont_1 = 11.1;   inc2_piont_2 = 12.5;
+inc2_piont_3 = 13;   inc2_piont_4 = 15;
+
+% 
+inc1_piont_1 = 7.5;   inc1_piont_2 = 8.9;
+inc1_piont_3 = 5;   inc1_piont_4 = 7;
+
+% 
+
+inc_3 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier5 = myrectangle(inc_3);
+inc_3 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation7 = [inc1_piont_1+length, inc1_piont_2-length, inc1_piont_4-length, inc1_piont_3+length, inc1_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation7(2,i+1)-simulation7(2,i))/(simulation7(1,i+1)-simulation7(1,i)));
+    if ((simulation7(1,i+1)-simulation7(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation7(2,i);
+        for x = simulation7(1,i):length*cosd(simulation_theta(i)):simulation7(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation7(1,i+1)-simulation7(1,i))==0) && (simulation7(2,i+1)-simulation7(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation7(1,i);
+        for y = simulation7(2,i):length:simulation7(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation7(1,i+1)-simulation7(1,i))==0) && (simulation7(2,i+1)-simulation7(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation7(1,i);
+        for y = simulation7(2,i):-length:simulation7(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation7(2,i);
+        for x = simulation7(1,i):length*cosd(simulation_theta(i)):simulation7(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+% 
+inc_4 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier6 = myrectangle(inc_4);
+inc_4 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation8 = [inc2_piont_1+length, inc2_piont_2-length, inc2_piont_4-length, inc2_piont_3+length, inc2_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+% num_simulation = 0;
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation8(2,i+1)-simulation8(2,i))/(simulation8(1,i+1)-simulation8(1,i)));
+    if ((simulation8(1,i+1)-simulation8(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation8(2,i);
+        for x = simulation8(1,i):length*cosd(simulation_theta(i)):simulation8(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation8(1,i+1)-simulation8(1,i))==0) && (simulation8(2,i+1)-simulation8(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation8(1,i);
+        for y = simulation8(2,i):length:simulation8(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation8(1,i+1)-simulation8(1,i))==0) && (simulation8(2,i+1)-simulation8(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation8(1,i);
+        for y = simulation8(2,i):-length:simulation8(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation8(2,i);
+        for x = simulation8(1,i):length*cosd(simulation_theta(i)):simulation8(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+%% 
+
+inc_y_1     = 15.5;
+inc_y_2     = 12;
+% 
+inc2_piont_1 = 13;   inc2_piont_2 = 15;
+inc2_piont_3 = 11.5;   inc2_piont_4 = 13.5;
+
+% 
+inc1_piont_1 = 5;   inc1_piont_2 = 7;
+inc1_piont_3 = 6.5;   inc1_piont_4 = 8.5;
+
+% 
+
+inc_5 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier7 = myrectangle(inc_5);
+inc_5 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation9 = [inc1_piont_1+length, inc1_piont_2-length, inc1_piont_4-length, inc1_piont_3+length, inc1_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation9(2,i+1)-simulation9(2,i))/(simulation9(1,i+1)-simulation9(1,i)));
+    if ((simulation9(1,i+1)-simulation9(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation9(2,i);
+        for x = simulation9(1,i):length*cosd(simulation_theta(i)):simulation9(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation9(1,i+1)-simulation9(1,i))==0) && (simulation9(2,i+1)-simulation9(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation9(1,i);
+        for y = simulation9(2,i):length:simulation9(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation9(1,i+1)-simulation9(1,i))==0) && (simulation9(2,i+1)-simulation9(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation9(1,i);
+        for y = simulation9(2,i):-length:simulation9(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation9(2,i);
+        for x = simulation9(1,i):length*cosd(simulation_theta(i)):simulation9(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+% 
+inc_6 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier8 = myrectangle(inc_6);
+inc_6 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation10 = [inc2_piont_1+length, inc2_piont_2-length, inc2_piont_4-length, inc2_piont_3+length, inc2_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+% num_simulation = 0;
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation10(2,i+1)-simulation10(2,i))/(simulation10(1,i+1)-simulation10(1,i)));
+    if ((simulation10(1,i+1)-simulation10(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation10(2,i);
+        for x = simulation10(1,i):length*cosd(simulation_theta(i)):simulation10(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation10(1,i+1)-simulation10(1,i))==0) && (simulation10(2,i+1)-simulation10(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation10(1,i);
+        for y = simulation10(2,i):length:simulation10(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation10(1,i+1)-simulation10(1,i))==0) && (simulation10(2,i+1)-simulation10(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation10(1,i);
+        for y = simulation10(2,i):-length:simulation10(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation10(2,i);
+        for x = simulation10(1,i):length*cosd(simulation_theta(i)):simulation10(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+%%
+%% 
+
+inc_y_1     = 12;
+inc_y_2     = 3;
+% 
+inc2_piont_1 = 11.5;   inc2_piont_2 = 13.5;
+inc2_piont_3 = 11.5;   inc2_piont_4 = 13.5;
+
+% 
+inc1_piont_1 = 6.5;   inc1_piont_2 = 8.5;
+inc1_piont_3 = 6.5;   inc1_piont_4 = 8.5;
+
+
+% 
+
+inc_7 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier11 = myrectangle(inc_7);
+inc_7 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation11 = [inc1_piont_1+length, inc1_piont_2-length, inc1_piont_4-length, inc1_piont_3+length, inc1_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation11(2,i+1)-simulation11(2,i))/(simulation11(1,i+1)-simulation11(1,i)));
+    if ((simulation11(1,i+1)-simulation11(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation11(2,i);
+        for x = simulation11(1,i):length*cosd(simulation_theta(i)):simulation11(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation11(1,i+1)-simulation11(1,i))==0) && (simulation11(2,i+1)-simulation11(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation11(1,i);
+        for y = simulation11(2,i):length:simulation11(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation11(1,i+1)-simulation11(1,i))==0) && (simulation11(2,i+1)-simulation11(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation11(1,i);
+        for y = simulation11(2,i):-length:simulation11(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation11(2,i);
+        for x = simulation11(1,i):length*cosd(simulation_theta(i)):simulation11(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+% 
+inc_8 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier12 = myrectangle(inc_8);
+inc_8 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation12 = [inc2_piont_1+length, inc2_piont_2-length, inc2_piont_4-length, inc2_piont_3+length, inc2_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+% num_simulation = 0;
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation12(2,i+1)-simulation12(2,i))/(simulation12(1,i+1)-simulation12(1,i)));
+    if ((simulation12(1,i+1)-simulation12(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation12(2,i);
+        for x = simulation12(1,i):length*cosd(simulation_theta(i)):simulation12(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation12(1,i+1)-simulation12(1,i))==0) && (simulation12(2,i+1)-simulation12(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation12(1,i);
+        for y = simulation12(2,i):length:simulation12(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation12(1,i+1)-simulation12(1,i))==0) && (simulation12(2,i+1)-simulation12(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation12(1,i);
+        for y = simulation12(2,i):-length:simulation12(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation12(2,i);
+        for x = simulation12(1,i):length*cosd(simulation_theta(i)):simulation12(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+%%
+% %%
+inc_y_1     = 12;
+inc_y_2     = 3;
+% 
+inc2_piont_1 = 11.5;   inc2_piont_2 = 13.5;
+inc2_piont_3 = 11.5;   inc2_piont_4 = 13.5;
+
+% 
+inc1_piont_1 = 6.5;   inc1_piont_2 = 8.5;
+inc1_piont_3 = 6.5;   inc1_piont_4 = 8.5;
+
+% 
+
+inc_9 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier13 = myrectangle(inc_9);
+inc_9 = 4*[inc1_piont_1,inc1_piont_2,inc1_piont_4,inc1_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation11 = [inc1_piont_1+length, inc1_piont_2-length, inc1_piont_4-length, inc1_piont_3+length, inc1_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation11(2,i+1)-simulation11(2,i))/(simulation11(1,i+1)-simulation11(1,i)));
+    if ((simulation11(1,i+1)-simulation11(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation11(2,i);
+        for x = simulation11(1,i):length*cosd(simulation_theta(i)):simulation11(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation11(1,i+1)-simulation11(1,i))==0) && (simulation11(2,i+1)-simulation11(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation11(1,i);
+        for y = simulation11(2,i):length:simulation11(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation11(1,i+1)-simulation11(1,i))==0) && (simulation11(2,i+1)-simulation11(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation11(1,i);
+        for y = simulation11(2,i):-length:simulation11(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation11(2,i);
+        for x = simulation11(1,i):length*cosd(simulation_theta(i)):simulation11(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+% 
+inc_10 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;];
+barrier14 = myrectangle(inc_10);
+inc_10 = 4*[inc2_piont_1,inc2_piont_2,inc2_piont_4,inc2_piont_3;
+    inc_y_1,inc_y_1,inc_y_2,inc_y_2;]*cell_wid;
+simulation12 = [inc2_piont_1+length, inc2_piont_2-length, inc2_piont_4-length, inc2_piont_3+length, inc2_piont_1+length;
+    inc_y_1+length, inc_y_1+length, inc_y_2-length, inc_y_2-length, inc_y_1+length];
+% num_simulation = 0;
+for i = 1:4         %
+    simulation_theta(i) = atand((simulation12(2,i+1)-simulation12(2,i))/(simulation12(1,i+1)-simulation12(1,i)));
+    if ((simulation12(1,i+1)-simulation12(1,i))<0 )
+        simulation_theta(i) = simulation_theta(i) +180;
+        y = simulation12(2,i);
+        for x = simulation12(1,i):length*cosd(simulation_theta(i)):simulation12(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    elseif ((simulation12(1,i+1)-simulation12(1,i))==0) && (simulation12(2,i+1)-simulation12(2,i))>0
+        simulation_theta(i) = 90;
+        x = simulation12(1,i);
+        for y = simulation12(2,i):length:simulation12(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    elseif ((simulation12(1,i+1)-simulation12(1,i))==0) && (simulation12(2,i+1)-simulation12(2,i))<0
+        simulation_theta(i) = 270;
+        x = simulation12(1,i);
+        for y = simulation12(2,i):-length:simulation12(2,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            x = x + length*cosd(simulation_theta(i));
+        end
+    else
+        y = simulation12(2,i);
+        for x = simulation12(1,i):length*cosd(simulation_theta(i)):simulation12(1,i+1)
+            num_simulation = num_simulation + 1;
+            simulation_captor(num_simulation,1)= x;
+            simulation_captor(num_simulation,2)= y;
+            y = y + length*sind(simulation_theta(i));
+        end
+    end
+    clear simulation_theta
+end
+
+%%
+pattern_barrier = barrier1'+ barrier2'+ barrier3'+ barrier4'+ barrier5'+ barrier6' + barrier7'+ barrier8' ;
+
+[num,dim] = size(simulation_captor);
+
+for index = 1:num
+    if isnan(simulation_captor(index))
+        simulation_captor(index) = simulation_captor(index+1);
+    end
+end
+pattern_simulatecaptor = generate_simulatepattern(simulation_captor);
+
+%%
+[num,dim] = size(p_captor);   % %
+
+drawn_captor = [];
+drawn_captor_b = [];
+drawn_captor_bb = [];
+for i = 1:time_step
+    
+%     if i >= 350
+%         distent_fish = 1.5;
+%     end
+     tic
+    num_i = i;
+    [pattern_target,pattern_point] = generate_pattern(p_fish,pattern_simulatecaptor);         %pattern
+
+    
+    temp = pattern_point;
+    [num,numb] = size(temp);
+    point = temp(round(linspace(1, num, num_robot+1)),:);
+    point(end,:) = [];
+    
+    new_temp = zeros(num,numb);
+    diff_x = temp(:, 1) - p_fish(1, 1); % 
+    valid_indices = find(temp(:, 2) > p_fish(1, 2) & diff_x >= 0); % 
+
+    
+    valid1 = valid_indices(1);
+    valid2 = num - valid1+1;
+    valid3 = valid2+1;
+    valid4 = valid1-1;
+    
+    new_temp(1:valid2,:) = temp(valid1:num,:);
+    new_temp(valid3:num,:) = temp(1:valid4,:);
+    sorted_temp = new_temp(valid_indices, :);
+
+    [~, max_y_index] = max(temp(:, 2));
+    valid1 = max_y_index(1);
+    valid2 = num - valid1+1;
+    valid3 = valid2+1;
+    valid4 = valid1-1;
+    
+    new_temp(1:valid2,:) = temp(valid1:num,:);
+    new_temp(valid3:num,:) = temp(1:valid4,:);
+    sorted_temp = new_temp(max_y_index, :);
+    
+    point = new_temp(round(linspace(1, num, num_robot+1)),:);
+    point(end,:) = [];
+% 
+%          计算每一份中的点的数量
+%      slice_size = floor(size(temp, 1) / num_robot);
+%      分组
+%      group1 = new_temp(1:slice_size, :);
+%      group2 = new_temp(slice_size+1:2*slice_size, :);
+%      group3 = new_temp(2*slice_size+1:3*slice_size, :);
+%      group4 = new_temp(3*slice_size+1:4*slice_size, :);
+%      group5 = new_temp(4*slice_size+1:5*slice_size, :);
+%      group6 = new_temp(5*slice_size+1:6*slice_size, :);
+%      group7 = new_temp(6*slice_size+1:7*slice_size, :);
+%      group8 = new_temp(7*slice_size+1:8*slice_size, :);
+%      group9 = new_temp(8*slice_size+1:9*slice_size, :);
+%      group10 = new_temp(9*slice_size+1:end, :);
+%      
+%      point = [group1(1,:);group2(1,:);group3(1,:);group4(1,:);group5(1,:);
+%               group6(1,:);group7(1,:);group8(1,:);group9(1,:);group10(1,:)];
+%           
+%           scatter(point(:,1), point(:,2), 'o', 'MarkerFaceColor', [0, 1, 1]);
+    %%
+
+%     scatter(pattern_point(1,:), pattern_point(2,:), 'o', 'MarkerFaceColor', [1, 0.5, 0]); 
+%     hold on
+%     scatter(point(:,1), point(:,2), 'o', 'MarkerFaceColor', [0, 1, 1]); 
+%     hold off
+%     set(gca, 'FontSize', 12);
+    
+%     s1=scatter(pattern_point( :,1),pattern_point(:,2),'o','r','filled'); 
+%     hold on
+%     s2=scatter(point(:,1),point(:,2),'o','c','filled'); 
+%     hold off
+%     legend[s1 s2],{'pattern points ', 'targets points'};
+%     set(gca, 'FontSize', 12);
+%    
+
+    
+    
+    r=1;
+    k=1;
+    j=1;
+    temp_captor = [];  
+    temp_captor_b = [];
+     temp_captor_bb = [];
+    for j=1:num_robot
+        if (p_captor(j,3) == 1) 
+            
+%              if i>1
+%             p_compare(:,1) = x_d_mat(i-1,:);
+%             p_compare(:,2) = y_d_mat(i-1,:);
+%             
+%             
+%             
+%             for k1 = 1:10
+%             distances = sqrt(sum((p_compare(k1,:) - [group1; group2; group3; group4; group5;
+%                                              group6; group7; group8; group9; group10]).^2, 2));
+%             [~, min_index] = min(distances);
+%     
+%             switch min_index
+%                 
+%         case 1
+%             point(k1,:) = group1(1,:);
+%         case 2
+%             point(k1,:) = group2(1,:);
+%         case 3
+%             point(k1,:) = group3(1,:);
+%         case 4
+%             point(k1,:) = group4(1,:);
+%         case 5
+%             point(k1,:) = group5(1,:);
+%         case 6
+%             point(k1,:) = group6(1,:);
+%         case 7
+%             point(k1,:) = group7(1,:);
+%         case 8
+%             point(k1,:) = group8(1,:);
+%         case 9
+%             point(k1,:) = group9(1,:);
+%         case 10
+%             point(k1,:) = group10(1,:);
+%     end
+%             end
+%             end
+            
+            x_mat(i,j) = p_captor(j, 1);
+            y_mat(i,j) = p_captor(j, 2);          
+            
+            x_d_mat(i, j) = point(j, 1);
+            y_d_mat(i, j) = point(j, 2);
+                       
+            x_b_mat(i,j) = pp_captor(j, 1);
+            y_b_mat(i,j) = pp_captor(j, 2);
+                        
+            x_d_bp_mat(i,j) =  point(j, 1);
+            y_d_bp_mat(i,j) =  point(j, 2);
+            
+            
+            x_bb_mat(i,j) = ppp_captor(j, 1);
+            y_bb_mat(i,j) = ppp_captor(j, 2);
+          
+            x_dd_mat(i, j) = point(j, 1);
+            y_dd_mat(i, j) = point(j, 2);
+           
+           
+              if i >= 20
+               bp_x_d= [x_d_mat(i,j);x_d_mat(i-1,j);x_d_mat(i-2,j);x_d_mat(i-3,j);y_d_mat(i,j);y_d_mat(i-1,j);y_d_mat(i-2,j);y_d_mat(i-3,j)];
+               bp_x_d = bp_x_d';
+               [bp_d] = point_ANN(bp_x_d);
+               x_d_bp_mat(i,j) = bp_d(1);
+               y_d_bp_mat(i,j) = bp_d(3);
+%                x_b_mat(i,j) = bp_d(1);
+%                y_b_mat(i,j) = bp_d(2);
+              end
+
+               if i >= 10
+               x_bp = [x_b_mat(i,j);x_b_mat(i-1,j);x_b_mat(i-2,j);x_b_mat(i-3,j);y_b_mat(i,j);y_b_mat(i-1,j);y_b_mat(i-2,j);y_b_mat(i-3,j)];
+               x_bp = x_bp';
+               [x_b_bp] = x_b_NeuralNetworkFunction(x_bp);
+            end
+
+             %%
+            %controller part
+%             tic
+
+            [move_b] = unlimit_Sliding_model_controller(i,j,dt,x_b_mat,y_b_mat,x_d_bp_mat,y_d_bp_mat);            
+%            move_b = UAV_sliding_model_controller(i,j,dt,x_b_mat,y_b_mat,x_d_bp_mat,y_d_bp_mat);
+
+
+%           toc
+%           disp(['runtime: ',num2str(toc)]);
+%           rec_time(i) = toc;
+%             error(i,j) = ((x_d_mat(i,j) -x_b_mat(i,j))^2 + (y_d_mat(i,j) -y_b_mat(i,j))^2)^0.5;
+%             error(i,j) = ((x_d_bp_mat(i,j) -x_b_mat(i,j))^2 + (y_d_bp_mat(i,j) -y_b_mat(i,j))^2)^0.5;
+                        %%
+            %CH-GRN（die except）
+%             tic
+%              v1
+           move_bb = CHtrapping(ppp_captor,p_fish,j,pattern_target,pattern_barrier,factors);%            
+% %            move = newTHtrapping(p_captor,p_fish,j,pattern_target,pattern_barrier,factors);
+           move_bb = CHavoiding(ppp_captor,move_bb,j,pattern_barrier,p_fish);
+%                error(i,j) =  ((ppp_captor(j, 1) - point(j, 1))^2 + (ppp_captor(j, 2) - point(j, 2))^2)^0.5;
+%%
+            %%GRN-1
+%           tic 
+            move = trapping(p_captor,p_fish,j,pattern_target,pattern_point);
+            move = avoiding(p_captor,move,j,pattern_barrier,p_fish);
+%           toc
+%           disp(['runtime: ',num2str(toc)]);
+%           rec_time(i) = toc;
+%             error(i,j) =  ((p_captor(j, 1) - point(j, 1))^2 + (p_captor(j, 2) - point(j, 2))^2)^0.5;
+%              
+            
+                   % Accumulate errors for each robot
+        if i == 1
+            cumulative_error(i, j) = error(i, j);
+        else
+            cumulative_error(i, j) = cumulative_error(i - 1, j) + error(i, j);
+        end
+            
+        
+            dis_robotTOpattern = sqrt( (p_captor(j,1)-p_fish(:,1)).^2 + (p_captor(j,2)-p_fish(:,2)).^2 );
+            if dis_robotTOpattern <= 0.25
+               move(1) = 0;
+               move(2) = 0;
+            end
+            if j > 1
+             dis_robotTOpattern = sqrt( (p_captor(j,1)-p_captor(j-1,1)).^2 + (p_captor(j,2)-p_captor(j-1,2)).^2 );
+            if dis_robotTOpattern <= 0.25
+               move(1) = 0;
+               move(2) = 0;
+            end
+            end
+            
+                        dis_robotTOpattern = sqrt( (ppp_captor(j,1)-p_fish(:,1)).^2 + (ppp_captor(j,2)-p_fish(:,2)).^2 );
+            if dis_robotTOpattern <= 0.25
+               move_bb(1) = 0;
+               move_bb(2) = 0;
+            end
+            if j > 1
+             dis_robotTOpattern = sqrt( (ppp_captor(j,1)-ppp_captor(j-1,1)).^2 + (ppp_captor(j,2)-ppp_captor(j-1,2)).^2 );
+            if dis_robotTOpattern <= 0.25
+               move_bb(1) = 0;
+               move_bb(2) = 0;
+            end
+            end
+            
+             % Accumulate errors for each robot
+        if i == 1
+            cumulative_error(i, j) = error(i, j);
+        else
+            cumulative_error(i, j) = cumulative_error(i - 1, j) + error(i, j);
+        end
+
+            
+            if j > 1
+             dis_robotTOpattern = sqrt( (pp_captor(j,1)-pp_captor(j-1,1)).^2 + (pp_captor(j,2)-pp_captor(j-1,2)).^2 );
+            if dis_robotTOpattern <= 0.1
+               move_b(1) = 0;
+               move_b(2) = 0;
+            end
+            
+             dis_robotTOpattern = sqrt( (pp_captor(j,1)-p_fish(:,1)).^2 + (pp_captor(j,2)-p_fish(:,2)).^2 );
+            if dis_robotTOpattern <= 0.25
+               move_b(1) = 0;
+               move_b(2) = 0;
+            end
+                          
+
+        end
+            
+            p_captor(j,1) = p_captor(j,1)+move(1);
+            p_captor(j,2) = p_captor(j,2)+move(2);
+            p_captor(j,4) = move(1);
+            p_captor(j,5) = move(2);
+            p_organizing(r,:) = p_captor(j,:);
+            
+            ppp_captor(j,1) = ppp_captor(j,1)+move_bb(1);
+            ppp_captor(j,2) = ppp_captor(j,2)+move_bb(2);
+            ppp_captor(j,4) = move_bb(1);
+            ppp_captor(j,5) = move_bb(2);
+            p_organizing(r,:) = ppp_captor(j,:);
+            
+            if i< 10
+            pp_captor(j,1) = pp_captor(j,1)+move_b(1);
+            pp_captor(j,2) = pp_captor(j,2)+move_b(2);
+            pp_captor(j,4) = move_b(1);
+            pp_captor(j,5) = move_b(2);
+            p_organizing(r,:) = pp_captor(j,:);
+            end
+            
+            if i >= 10
+            p_move = x_b_bp;
+            p_move(1) = pp_captor(j, 1) - x_b_bp(1);
+            p_move(2) = pp_captor(j, 2) - x_b_bp(3);
+            pp_captor(j,1) = pp_captor(j,1) + 1 * move_b(1) + 0 * p_move(1);
+            pp_captor(j,2) = pp_captor(j,2) + 1 * move_b(2) + 0 * p_move(2);
+            pp_captor(j,4) = 1 * move_b(1) + 0 * p_move(1);
+            pp_captor(j,5) = 1 * move_b(2) + 0 * p_move(2);
+            end
+            
+
+            r = r+1;
+        else                                    
+            non_move=[0,0];
+            p_captor(j,1) = p_captor(j,1)+non_move(1);
+            p_captor(j,2) = p_captor(j,2)+non_move(2);
+            p_captor(j,4) = non_move(1);
+            p_captor(j,5) = non_move(2);
+            p_nonorganizing(k,:) = p_captor(j,:);
+            k = k+1;
+        end
+        trace(2*j-1,i) = p_captor(j,1);
+        trace(2*j,i) = p_captor(j,2);
+        
+        
+        robot = [p_captor(j,1),p_captor(j,2)];
+        robot_b = [pp_captor(j,1),pp_captor(j,2)];
+        robot_bb = [ppp_captor(j,1),ppp_captor(j,2)];
+        
+        temp_captor = [temp_captor,robot]; 
+        temp_captor_b = [temp_captor_b,robot_b]; 
+        temp_captor_bb = [temp_captor_bb,robot_bb]; 
+        
+         point_rec1(j , i) = point(j , 1);
+         point_rec1(j + 10 , i) = point(j , 2);
+         point_rec1(:,i+1) = 0;
+         
+          
+         point_rec2(j , i+1) = point_rec1(j , i);
+         point_rec2(j + 10 , i+1) = point_rec1(j+10 , i);
+         
+        point_change(j, i) = point_rec1(j, i) - point_rec2(j, i) ;
+        point_change(j+10, i) = point_rec1(j+10, i) - point_rec2(j+10, i) ;
+        point_change(:, 1) = 0;
+        
+        d_zero = zeros(20,1);
+        d_mat = [x_d_bp_mat';y_d_bp_mat'];
+        dd_mat = [d_zero d_mat];
+        d_mat = [d_mat d_zero];
+        ddd_mat = d_mat - dd_mat;
+        ddd_mat(:, 1) = 0;
+        ddd_mat(:,end) = [];
+
+
+        captor_change(j , i) = p_captor(j, 4);
+        captor_change(j + 10 , i) = p_captor(j, 5);
+    
+        captor_change_b(j , i) = pp_captor(j, 4);
+        captor_change_b(j + 10, i) = pp_captor(j, 5);
+    
+        captor_change_bb(j , i) = ppp_captor(j, 4);
+        captor_change_bb(j + 10 , i) = ppp_captor(j, 5);
+        
+        v_p_fish1(j , i) = p_fish(1, 1);
+        v_p_fish1(j + 10 , i) = p_fish(1, 2);
+        
+        v_p_fish2(j , i) = p_fish(2, 1);
+        v_p_fish2(j + 10 , i) = p_fish(2, 2);
+        
+        if i>1
+            v_p(i,1) = v_p_fish1(1,i) - v_p_fish1(1,i-1);
+            v_p(i,2) = v_p_fish1(11,i) - v_p_fish1(11,i-1);
+            Vp = v_p';
+        end
+                  toc
+          disp(['runtime: ',num2str(toc)]);
+          rec_time(i) = toc;
+    end
+
+    drawn_captor = [drawn_captor;temp_captor];
+    drawn_captor_b = [drawn_captor_b;temp_captor_b];
+    drawn_captor_bb = [drawn_captor_bb;temp_captor_bb];
+
+ 
+
+    
+ p1 = line([10,10],[1,22.5],'linestyle','--','LineWidth',2,'color',[0.65,0.65,0.65]);   
+    hold on;
+ p2 = line([-1,-1],[1,18],'linestyle','-','LineWidth',2,'color',[1.00,0.00,0.00]);   % red line[1.00,0.41,0.16]
+        hold on ;
+ p3 = plot(p_fish(:,1),p_fish(:,2),'*','LineWidth',1,'MarkerSize', 8,'color','#FF0000');              
+    hold on;
+    %%
+    %track line
+
+    %%
+pos_max = 64;
+p_size = [2*ones(1,16), 3*ones(1,16), 4*ones(1,16), 5*ones(1,16)]; 
+if i > 1
+    for num_j1 = 1:1:size(2*pos_list1, 1)
+        tmp_p1 = pos_list1(num_j1, :);  
+%         plot(tmp_p1(1), tmp_p1(2), 'o', 'MarkerFaceColor', [0.3,0.74,0.93], 'MarkerSize', p_size(num_j1));%green [0.65, 0.85, 0.65] blue[0.3,0.74,0.93]
+        hold on;
+    end
+    
+    for num_j2 = 1:1:size(2 * pos_list2, 1)
+        tmp_p2 = pos_list2(num_j2, :);  
+        plot(tmp_p2(1), tmp_p2(2), 'o', 'MarkerFaceColor', [1 ,0.55 ,0.0], 'MarkerSize', p_size(num_j2));
+        hold on;
+    end
+    
+    for num_j3 = 1:1:size(2*pos_list3, 1)
+        tmp_p3 = pos_list3(num_j3, :);  
+%         plot(tmp_p3(1), tmp_p3(2), 'o', 'MarkerFaceColor', [0.65, 0.85, 0.65], 'MarkerSize', p_size(num_j3));%green [0.65, 0.85, 0.65] blue[0.3,0.74,0.93]
+        hold on;
+    end
+    
+end
+    
+ if i == 1
+    pos_list1 = p_captor(1:10, 1:2);  
+    pos_list2 = pp_captor(1:10, 1:2); 
+    pos_list3 = ppp_captor(1:10, 1:2); 
+else
+    pos_list1 = [pos_list1; p_captor(1:10, 1:2)];  
+    pos_list2 = [pos_list2; pp_captor(1:10, 1:2)]; 
+    pos_list3 = [pos_list3; ppp_captor(1:10, 1:2)]; 
+    if size(pos_list1, 1) > pos_max
+        pos_list1 = pos_list1(end-pos_max+1:end, :);  
+    end
+    if size(pos_list2, 1) > pos_max
+        pos_list2 = pos_list2(end-pos_max+1:end, :); 
+    end
+    if size(pos_list3, 1) > pos_max
+        pos_list3 = pos_list3(end-pos_max+1:end, :);  
+    end
+end
+
+ 
+
+    %% 
+%     if r~=1
+%         plot(p_organizing(:,1),p_organizing(:,2),'o','MarkerFaceColor',[0.3,0.74,0.93],'MarkerEdgeColor',[0.00,0.30,1.00],'MarkerSize', 8,'LineWidth',1); % ,'MarkerFaceColor',[1.00,0.07,0.65]                      %organizer用.画出
+%     end
+    if k~=1
+        plot(p_nonorganizing(:,1),p_nonorganizing(:,2),'hexagram','color',[0.00,0.00,1.00],'MarkerSize', 8)            
+    end
+    clear p_organizing p_nonorganizing;
+    p4 = patch(point1(1,:),point1(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);   % tunnel
+    patch(point2(1,:),point2(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_1(1,:),inc_1(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_2(1,:),inc_2(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_3(1,:),inc_3(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_4(1,:),inc_4(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_5(1,:),inc_5(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_6(1,:),inc_6(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_7(1,:),inc_7(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_8(1,:),inc_8(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_9(1,:),inc_9(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+    patch(inc_10(1,:),inc_10(2,:),[0.7,0.7,0.7], 'edgecolor', 'k','LineWidth',1);
+   p8 =  patch(inc_0(1,:),inc_0(2,:),'c', 'edgecolor', [0,0.44,0.74],'LineWidth',2);
+    hold on;
+
+         if i <= 200
+         p_fish(1,2) = p_fish(1,2) - 0.20 * (i / 80)^1.5; 
+         p_fish(2,2) = p_fish(2,2) - 0.20 * (i / 80)^1.5; 
+         
+         
+         v1 = 0.3;
+         v2 = 0.3; 
+         v = 0.3;
+         
+     elseif i > 200 && i <=210
+        p_fish(1,2) = p_fish(1,2)-0.045;
+        p_fish(2,2) = p_fish(2,2)-0.03;
+     elseif i > 210 && i <=310
+        p_fish(1,2) = p_fish(1,2)-0.08;
+        p_fish(2,2) = p_fish(2,2)-0.08;
+     elseif i > 310 && i <=360
+        p_fish(1,2) = p_fish(1,2)-0.03;
+        p_fish(2,2) = p_fish(2,2)-0.03;
+     elseif i > 320 && i <=500
+        p_fish(1,2) = p_fish(1,2);
+        p_fish(2,2) = p_fish(2,2);
+     end
+     
+    hold on;
+%     p5 =
+%     plot(p_captor(:,1),p_captor(:,2),'o','MarkerFaceColor',[0.3,0.74,0.93],'MarkerEdgeColor',[0.00,0.30,1.00],'MarkerSize',
+%     8,'LineWidth',1); % gp-grn
+%     p6 = plot(ppp_captor(:,1),ppp_captor(:,2),'o','MarkerFaceColor',[0.65, 0.85, 0.65],'MarkerEdgeColor',[0.05, 0.5, 0.05],'MarkerSize', 8,'LineWidth',1); % 绿目标
+    p9 = plot(pp_captor(:,1),pp_captor(:,2),'o','MarkerFaceColor',[1 ,0.55 ,0.0],'MarkerEdgeColor',[0.7,0.13,0.13],'MarkerSize', 8,'LineWidth',1);   
+        for num_i = 1:num_robot
+    arrow_length = 1.5;  
+%     p6 = quiver(pp_captor(num_i,1), pp_captor(num_i,2), arrow_length*pp_captor(num_i,4), arrow_length*pp_captor(num_i,5), 'r', 'LineWidth', 1.3, 'MaxHeadSize', 1, 'AutoScale', 'on', 'ShowArrowHead', 'on');
+%     hold on;
+        end
+        
+
+x_center = p_fish(1,1);
+y_center = p_fish(1,2);
+x_down = x_center - 5;
+x_up = x_center + 5;
+y_down = y_center - 5;
+y_up = y_center + 5;
+
+axis([x_down, x_up, y_down, y_up]);
+hold on;
+
+
+    
+
+       leg_h = legend([p1 p8 p2 p3 p4 p9],{'Path','Base','Pattern','Targets','Tunnel','GRN-SMC'},'NumColumns', 2, 'FontSize', 15, 'FontName', 'Times New Roman','Location', 'North') ;
+%      leg_h = legend([p1 p8 p2 p3 p4 p5],{'Path','Base','Pattern','Targets','Tunnel','GP-GRN'},'NumColumns', 2, 'FontSize', 15, 'FontName', 'Times New Roman','Location', 'North') ;
+%      leg_h = legend([p1 p8 p2 p3 p4 p6],{'Path','Base','Pattern','Targets','Tunnel','CH-GRN'},'NumColumns', 2, 'FontSize', 15, 'FontName', 'Times New Roman','Location', 'North') ;
+
+            
+%      leg_h = legend([p1 p8 p2 p3 p4 p9 track2 ],{'Path','Base','Pattern','Targets','Tunnel','Grn-smc','Track'}) ;
+set(gca, 'FontSize', 20, 'FontName', 'Times New Roman');  
+xlabel('x/m', 'FontName', 'Times New Roman');           
+ylabel('y/m', 'FontName', 'Times New Roman');           
+    hold off;
+    drawnow;
+    disp(i)     
+     if i == 1 || i == 50 || i == 75 || i == 100 
+      set(gcf, 'Position', [100, 100, 500, 450]); 
+     % save image
+%         filename = sprintf('output_image_%d.png', i);
+%         saveas(gcf, filename);
+% 
+%         filename_png = sprintf('GRN_SMC_%d.png', i);
+%         print(gcf, filename_png, '-dpng', '-r600'); 
+%        % 保存为 PDF 格式
+%        filename_pdf = sprintf('output_image_%d.pdf', i);
+%        print(gcf, filename_pdf, '-dpdf'); % -dpdf 
+     end
+     
+%               % 输出下载图表的时刻
+%      if i == 1 || i == 50 || i == 75 || i == 100 
+%       set(gcf, 'Position', [100, 100, 500, 450]); % 600x600是正方形尺寸，可以调整大小
+% 
+%     % 关键修改：配置纸张设置以匹配屏幕尺寸
+%     set(gcf, 'PaperPositionMode', 'auto');      % 保持屏幕比例
+%     paperpos = get(gcf, 'PaperPosition');       % 获取默认纸张位置
+%     papersize = paperpos(3:4);                  % 提取所需纸张尺寸
+%     
+%     % 设置自定义纸张大小（单位：英寸）
+%     set(gcf, 'PaperSize', papersize);           % 自定义纸张尺寸
+%     set(gcf, 'PaperPosition', [0 0 papersize]); % 去除边缘空白
+%     
+%     % 保存PDF（匹配屏幕尺寸）
+%     filename_pdf = sprintf('GRN-SMC_123_%d.pdf', i);
+%     print(gcf, filename_pdf, '-dpdf', '-r600', '-bestfit', '-painters');
+%      end
+    
+end
+
+Vr_grn1 = sqrt((captor_change(1:10 ,:)).^2 +(captor_change(11:20,:)).^2 );
+Vr_smc = sqrt((captor_change_b(1:10 ,:)).^2 +(captor_change_b(11:20,:)).^2 );
+Vr_ch = sqrt((captor_change_bb(1:10 ,:)).^2 +(captor_change_bb(11:20,:)).^2 );
+Vr_P_d = sqrt((ddd_mat(1:10 ,:)).^2 +(ddd_mat(11:20,:)).^2 );
+Vt = sqrt((Vp(1,:)).^2 +(Vp(2,:)).^2 );
+   
+
+
